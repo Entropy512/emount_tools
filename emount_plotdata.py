@@ -172,9 +172,16 @@ for line in infile:
                 pos1C.append(lastpos_p)
             elif(cmdid == 0x1D):
                 times1D.append(pktts)
-                positioncmd = struct.unpack('<H', pktdata[bytesproc+1:bytesproc+3])[0]
+                print str(pktts) + ": " + binascii.hexlify(pktdata[bytesproc:bytesproc+5])
+                (positioncmd, cmdtype) = struct.unpack('<hH', pktdata[bytesproc+1:bytesproc+5])
                 if(positioncmd == 0):
                     positioncmd = None
+                if((cmdtype == 0x3cff) | (cmdtype == 0x400)):
+                    positioncmd += lastpos_p
+                elif(cmdtype == 0):
+                    positioncmd *= 1
+                else:
+                    raise ValueError("Unknown cmd type " + hex(cmdtype) + " seen for cmdid 0x1D");
                 pos1D.append(positioncmd)
                 bytesproc += 5
             elif(cmdid == 0x03):
@@ -287,7 +294,7 @@ print seen_lens
 
 #print motordata
 plt.figure(1)
-plt1 = plt.subplot(311)
+plt1 = plt.subplot(211)
 plt1.plot(timespos,mpos1,'b',timespos,mpos2,'r')
 plt1.plot(times1D,pos1D,'co', times1C, pos1C, 'rx')
 plt1.plot(times1F,pos1F,'y^',times3C,pos3C,'g^',times22,pos22,'b^')
@@ -295,13 +302,13 @@ types_cslot2 = np.array(types_cslot2)
 #plt.vlines(times_cslot2,18000+types_cslot2*250,18250+types_cslot2*250)
 #plt.axis([6.2,7.2,18500,19500])
 
-plt2 = plt.subplot(312,sharex=plt1)
+plt2 = plt.subplot(212,sharex=plt1)
 plt2.plot(timespos,speeds_p,'b',timespos,speeds_s,'r')
 plt2.axhline(color='k')
 
-plt3 = plt.subplot(313,sharex=plt1)
-plt3.semilogy(aperturetimes,apertures1,'b',aperturetimes,apertures2,'r')
-plt3.semilogy(aperturestattimes,aperturestats1,'c',aperturestattimes,aperturestats2,'g')
+#plt3 = plt.subplot(313,sharex=plt1)
+#plt3.semilogy(aperturetimes,apertures1,'b',aperturetimes,apertures2,'r')
+#plt3.semilogy(aperturestattimes,aperturestats1,'c',aperturestattimes,aperturestats2,'g')
 #plt3.axis([None,None,-0.5,6.5])
 #plt.axis([6.2,7.2,-0.5,6.5])
 
