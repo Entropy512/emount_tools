@@ -135,8 +135,7 @@ for line in infile:
                 #but I should look for potential patterns when motorpos2 is 0
                 bytesproc += 40
             elif(cmdid == 0x05):
-                #This almost surely is actually multiple status responses - but the packets in this status slot are ALWAYS 0x69 bytes long
-                #and so far I haven't analyzed this status packet at all
+                #TODO:  Use the info leegong provided to decode this packet in more detail
                 bytesproc += 97
                 aperturestattimes.append(pktts)
                 #Aperture is bytes 1-2 and 3-4
@@ -149,14 +148,21 @@ for line in infile:
                 #Strangely, 0x2F hops between the two command timeslots depending on where in the focusing phase
                 #you are
             elif(cmdid == 0x1C):
+                #Fairly certain this ACKs a 0x1C (stop) command
                 bytesproc += 2
             elif(cmdid == 0x1D):
+                #Fairly certain this ACKs a 0x1D (move lens absolute/relative) command
+                #Determine what the payload of this means, if anything
                 bytesproc += 2
             elif(cmdid == 0x1F):
+                #ACKs a semi-autonomous hunt command - need to look at timing of this,
+                #does it ACK the start of hunt, or the end - if end should be rare as
+                #0x1F is usually interrupted by a subsequent 0x1D or 0x3C
                 bytesproc += 2
             elif(cmdid == 0x22):
                 bytesproc += 3
             elif(cmdid == 0x3C):
+                #ACKs a "move at speed" command?  When???  Need further investigation
                 bytesproc += 4
             else:
                 print "Unknown response ID seen: " + hex(cmdid) + " in packet with len " + hex(pktlen)
@@ -167,45 +173,74 @@ for line in infile:
         while(bytesproc < payloadlen):
             cmdid = pktdata[bytesproc]
             if(cmdid == 0x1C):
+                #Stop lens movement
                 bytesproc += 1
                 times1C.append(pktts)
                 pos1C.append(lastpos_p)
             elif(cmdid == 0x1D):
+                #Absolute or relative motor movement, as fast as possible
                 times1D.append(pktts)
                 print str(pktts) + ": " + binascii.hexlify(pktdata[bytesproc:bytesproc+5])
                 (positioncmd, cmdtype) = struct.unpack('<hH', pktdata[bytesproc+1:bytesproc+5])
                 if(positioncmd == 0):
                     positioncmd = None
                 if((cmdtype == 0x3cff) | (cmdtype == 0x400)):
+                    #Only seen during the microstepping phase of legacy-adapter CDAF
+                    #Relative positioning - TODO, determine if 0x400 needs to be divided by 2
                     positioncmd += lastpos_p
-                elif(cmdtype == 0):
+                elif((cmdtype == 0) | (cmdtype == 0x4000)):
+                    #Absolute movement.  Used rarely in legacy-adapter CDAF, is nearly
+                    #100% of legacy-adapter PDAF commands, and the majority of native AF-C commands
+                    #Rarely if ever seen for native AF-S
+                    #0x4000 is really rare - if it appears, seems to be near beginning of native AF-C
+                    #after some 0x22s are fired
                     positioncmd *= 1
                 else:
                     raise ValueError("Unknown cmd type " + hex(cmdtype) + " seen for cmdid 0x1D");
                 pos1D.append(positioncmd)
                 bytesproc += 5
             elif(cmdid == 0x03):
+                #Commands aperture and a whole bunch of other stuff
                 aperturetimes.append(pktts)
                 (aperture1,aperture2)=struct.unpack_from('<HH', pktdata, offset=4)
                 apertures1.append(valtoaperture(aperture1))
                 apertures2.append(valtoaperture(aperture2))
                 bytesproc += 21
             elif(cmdid == 0x04):
+                #??????? commands
                 bytesproc += 14
             elif(cmdid == 0x22):
+                #Another form of absolute motor movement.
+                #I've only seen it for native AF-C, usually near the beginning of
+                #AF tracking
+                #Also seems to always be in the same frame as a 0x1D mode 0000 with the same
+                #absolute position - what is the purpose of this?
+                print str(pktts) + ": " + binascii.hexlify(pktdata[bytesproc:bytesproc+3])
                 data22 = struct.unpack('<H', pktdata[bytesproc+1:bytesproc+3])[0]
                 times22.append(pktts)
                 pos22.append(data22)
                 bytesproc += 3
             elif(cmdid == 0x2F):
+                #This odd beast hops between the first and second command timeslot, and is usually
+                #echoed within a few cycles in bytes 78/79 of a 0x05 status response
 #                print str(pktts) + ": " + binascii.hexlify(pktdata[bytesproc:bytesproc+3])
                 bytesproc += 3
             elif(cmdid == 0x3C):
+                #Move motor at a commanded speed and direction until told otherwise
+                # - or you hit a limit?  Need to analyze when this gets ACKed
                 print str(pktts) + ": " + binascii.hexlify(pktdata[bytesproc:bytesproc+8])
                 bytesproc += 8
                 times3C.append(pktts)
                 pos3C.append(lastpos_p)
             elif(cmdid == 0x1F):
+                #Semiautonomous hunt - move quickly away from subject as fast as possible,
+                #then advance towards subject at reduced speed
+                #"away from subject" determined with PDAF hint.  If PDAF not available, always
+                #advance forwards initially
+                #This is the most common native AF-S command, but it can also be seen in
+                #legacy-adapter CDAF - in which case an LA-EA3 appears to emulate reduced
+                #speed using rapid microstepping of the lens as evidenced by the "jitter" of
+                #a speed plot.
                 print str(pktts) + ": " + binascii.hexlify(pktdata[bytesproc:bytesproc+14])
                 bytesproc += 14
                 times1F.append(pktts)
