@@ -94,10 +94,10 @@ for line in infile:
                     motorpos1 = None
                 #This looks like a Metabones IV bug
                 elif(motorpos1 == 0x7fff):
-                    print "Metabones bug 1"
+                    print str(pktts) + ": Metabones bug 1"
                     motorpos1 = None
                 elif(motorpos1 == 0xa000):
-                    print "Metabones bug 2"
+                    print str(pktts) + ": Metabones bug 2"
                     motorpos1 = None
 #                elif(motorpos1 == 0x01c0):
 #                    print "Metabones bug 3"
@@ -182,18 +182,21 @@ for line in infile:
                 times1D.append(pktts)
                 print str(pktts) + ": " + binascii.hexlify(pktdata[bytesproc:bytesproc+5])
                 (positioncmd, cmdtype) = struct.unpack('<hH', pktdata[bytesproc+1:bytesproc+5])
-                if(positioncmd == 0):
-                    positioncmd = None
-                if((cmdtype == 0x3cff) | (cmdtype == 0x400)):
+#                if(positioncmd == 0):
+#                    positioncmd = None
+                if((cmdtype == 0x3cff) | (cmdtype == 0x400) | (cmdtype == 0x8300) | (cmdtype == 0x4300) | (cmdtype == 0x300)):
                     #Only seen during the microstepping phase of legacy-adapter CDAF
                     #Relative positioning - TODO, determine if 0x400 needs to be divided by 2
+                    #0x8300 and 0x4300 are probably something else after further investigation...
                     positioncmd += lastpos_p
-                elif((cmdtype == 0) | (cmdtype == 0x4000)):
+                elif((cmdtype == 0) | (cmdtype == 0x4000) | (cmdtype == 0x8000)):
                     #Absolute movement.  Used rarely in legacy-adapter CDAF, is nearly
                     #100% of legacy-adapter PDAF commands, and the majority of native AF-C commands
                     #Rarely if ever seen for native AF-S
                     #0x4000 is really rare - if it appears, seems to be near beginning of native AF-C
                     #after some 0x22s are fired
+                    #I've seen 0x8000 once - only during a trace of a badly-behaving MBIV 0.52Adv +
+                    #EF50/1.8 STM
                     positioncmd *= 1
                 else:
                     raise ValueError("Unknown cmd type " + hex(cmdtype) + " seen for cmdid 0x1D");
