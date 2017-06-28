@@ -19,6 +19,13 @@ def apertureval(fstop):
 def valtoaperture(val):
     return 2**(val/512.0-8.0)
 
+#The following is based on info obtained from Leegong's firmware reverse engineering
+#Last entry in each of these arrays appears to be unused
+#Length of each subgroup in lens status message group 5
+group5_lens = [8, 1, 8, 3, 0x0A, 0x1C, 2, 6, 1, 2, 8, 6, 6, 6, 1]
+#Length of each subgroup in lens status message group 6
+group6_lens = [2, 0x0B, 9, 4, 6, 7]
+
 seen_lens = []
 
 timespos = []
@@ -89,6 +96,11 @@ for line in infile:
             cmdid = pktdata[bytesproc]
             if(cmdid == 0x6):
                 timespos.append(pktts)
+                sum6 = 1
+                print str(pktts) + ": Group 6"
+                for j in range(len(group6_lens)):
+                    print "\tSubgroup " + str(j) + ": " + binascii.hexlify(pktdata[bytesproc+sum6:bytesproc+sum6+group6_lens[j]])
+                    sum6 += group6_lens[j]
                 motorpos1 = struct.unpack('<H', pktdata[bytesproc+3:bytesproc+5])[0]
                 if(motorpos1 == 0):
                     motorpos1 = None
@@ -135,6 +147,11 @@ for line in infile:
                 #but I should look for potential patterns when motorpos2 is 0
                 bytesproc += 40
             elif(cmdid == 0x05):
+                sum5 = 1
+                print str(pktts) + ": Group 5"
+                for j in range(len(group5_lens)):
+                    print "\tSubgroup " + str(j) + ": " + binascii.hexlify(pktdata[bytesproc+sum5:bytesproc+sum5+group5_lens[j]])
+                    sum5 += group5_lens[j]
                 #TODO:  Use the info leegong provided to decode this packet in more detail
                 bytesproc += 97
                 aperturestattimes.append(pktts)
