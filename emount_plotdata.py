@@ -80,7 +80,8 @@ min_pos = 99999999999999
 max_pos = 0
 
 for line in infile:
-    [pktts,data] = line.split(',',1)
+    [sigrok_parser, data] = line.split(':',1)
+    [pktts,data] = data.split(',',1)
     pktts = float(pktts)
     [lenstr,data] = data.split(',',1)
     pktlen = int(lenstr.split(':',1)[1],16)
@@ -96,12 +97,17 @@ for line in infile:
             cmdid = pktdata[bytesproc]
             if(cmdid == 0x6):
                 timespos.append(pktts)
+                string6 = str(pktts) + ": Group 6:"
                 sum6 = 1
-                print str(pktts) + ": Group 6"
+#                print str(pktts) + ": Group 6"
                 for j in range(len(group6_lens)):
-                    print "\tSubgroup " + str(j) + ": " + binascii.hexlify(pktdata[bytesproc+sum6:bytesproc+sum6+group6_lens[j]])
+                    #print "\tSubgroup " + str(j) + ": " + binascii.hexlify(pktdata[bytesproc+sum6:bytesproc+sum6+group6_lens[j]])
+                    if((j == 12) | (j == 13)):
+                        string6 += " Sg " + str(j) + ": " + binascii.hexlify(pktdata[bytesproc+sum6:bytesproc+sum6+group6_lens[j]])
                     sum6 += group6_lens[j]
                 motorpos1 = struct.unpack('<H', pktdata[bytesproc+3:bytesproc+5])[0]
+                string6 += " Pos: " + str(motorpos1)
+                print string6
                 if(motorpos1 == 0):
                     motorpos1 = None
                 #This looks like a Metabones IV bug
@@ -147,11 +153,15 @@ for line in infile:
                 #but I should look for potential patterns when motorpos2 is 0
                 bytesproc += 40
             elif(cmdid == 0x05):
+                string5 = str(pktts) + ": Group 5:"
                 sum5 = 1
-                print str(pktts) + ": Group 5"
+                #print str(pktts) + ": Group 5"
                 for j in range(len(group5_lens)):
-                    print "\tSubgroup " + str(j) + ": " + binascii.hexlify(pktdata[bytesproc+sum5:bytesproc+sum5+group5_lens[j]])
+                    #print "\tSubgroup " + str(j) + ": " + binascii.hexlify(pktdata[bytesproc+sum5:bytesproc+sum5+group5_lens[j]])
+                    if((j == 12) | (j == 13)):
+                        string5 += " Sg " + str(j) + ": " + binascii.hexlify(pktdata[bytesproc+sum5:bytesproc+sum5+group5_lens[j]])
                     sum5 += group5_lens[j]
+                print string5
                 #TODO:  Use the info leegong provided to decode this packet in more detail
                 bytesproc += 97
                 aperturestattimes.append(pktts)
@@ -176,6 +186,9 @@ for line in infile:
                 #does it ACK the start of hunt, or the end - if end should be rare as
                 #0x1F is usually interrupted by a subsequent 0x1D or 0x3C
                 bytesproc += 2
+            elif(cmdid == 0x20):
+                #Only seen in the same status slot as group 5, and only seen reported by the Techart EOS-NEX III in Fn mode
+                bytesproc += 12
             elif(cmdid == 0x22):
                 bytesproc += 3
             elif(cmdid == 0x3C):
